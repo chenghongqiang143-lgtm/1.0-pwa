@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { BarChart2, Settings, ChevronLeft, ChevronRight, CalendarDays, Activity, Star, LayoutGrid, ClipboardCheck, RefreshCw, X } from 'lucide-react';
+import { BarChart2, Settings, ChevronLeft, ChevronRight, CalendarDays, Activity, Star, LayoutGrid, ClipboardCheck, RefreshCw, X, Download } from 'lucide-react';
 import { format, addDays, subDays } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { AppState, Tab, Task, DayData, DayRating, RatingItem, Redemption, ShopItem } from './types';
@@ -36,43 +36,31 @@ export default function App() {
   useEffect(() => {
     setState(loadState());
     
-    // 1. 处理安装提示
+    // 1. 处理安装提示（PWA A2HS）
     const handleBeforeInstallPrompt = (e: any) => { 
       e.preventDefault(); 
       setInstallPrompt(e); 
     };
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
-    // 2. 监测 Service Worker 更新 (PWA 核心逻辑) - 增加防御性代码
-    const isSecureContext = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
-    if ('serviceWorker' in navigator && isSecureContext) {
-      try {
-        navigator.serviceWorker.getRegistration().then(reg => {
-          if (reg) {
-            swRegistration.current = reg;
-            reg.addEventListener('updatefound', () => {
-              const newWorker = reg.installing;
-              newWorker?.addEventListener('statechange', () => {
-                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  setShowUpdateToast(true);
-                }
-              });
+    // 2. 监测 Service Worker 更新
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistration().then(reg => {
+        if (reg) {
+          swRegistration.current = reg;
+          reg.addEventListener('updatefound', () => {
+            const newWorker = reg.installing;
+            newWorker?.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                // 新版本已下载并安装，处于等待状态
+                setShowUpdateToast(true);
+              }
             });
-          }
-        }).catch(err => {
-          // 捕获预览环境可能抛出的 SecurityError 或 Origin 错误
-          console.debug('SW Registration inquiry ignored (likely cross-origin sandbox)');
-        });
-      } catch (e) {
-        // 防止不支持构造 URL 或其他异常环境
-      }
-    }
-
-    // 3. 处理从快捷方式启动的情况
-    const params = new URLSearchParams(window.location.search);
-    const tabParam = params.get('tab') as Tab;
-    if (tabParam && ['tracker', 'stats', 'rating', 'settings'].includes(tabParam)) {
-      setActiveTab(tabParam);
+          });
+          // 初始检查
+          if (reg.waiting) setShowUpdateToast(true);
+        }
+      }).catch(() => {});
     }
 
     return () => {
@@ -208,47 +196,6 @@ export default function App() {
     }
   };
 
-  const handleExportData = () => {
-    const dataStr = JSON.stringify(state, null, 2);
-    const blob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `chronos_flow_data_${format(new Date(), 'yyyy-MM-dd')}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleImportData = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const json = JSON.parse(e.target?.result as string);
-        if (json && json.tasks && Array.isArray(json.tasks)) {
-           setState(json);
-           alert("数据导入成功");
-        } else alert("无效的数据文件");
-      } catch (err) {
-        alert("解析文件失败");
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  const handleClearData = () => {
-    setState({
-      tasks: DEFAULT_TASKS,
-      categoryOrder: ['生活', '工作', '健康', '成长'],
-      ratingItems: DEFAULT_RATING_ITEMS,
-      shopItems: [],
-      redemptions: [],
-      schedule: {},
-      recurringSchedule: {},
-      records: {},
-      ratings: {},
-    });
-  };
-
   const handleDateSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.value) {
         const [year, month, day] = e.target.value.split('-').map(Number);
@@ -273,21 +220,19 @@ export default function App() {
         
         <header className="pt-8 sm:pt-10 pb-4 px-6 bg-white flex items-center justify-between z-40 select-none shrink-0 border-b border-stone-100">
            <div className="w-12 sm:w-24 flex justify-start">
-               <div className="relative w-10 h-10 flex items-center justify-center">
-                   <button 
-                        onClick={triggerDatePicker}
-                        className="w-full h-full flex items-center justify-center rounded-full bg-stone-50 text-stone-600 hover:bg-stone-100 transition-all active:scale-95 border border-stone-200"
-                   >
-                       <CalendarDays size={20} />
-                   </button>
+               <button 
+                    onClick={triggerDatePicker}
+                    className="w-10 h-10 flex items-center justify-center rounded-full bg-stone-50 text-stone-600 hover:bg-stone-100 transition-all active:scale-95 border border-stone-200"
+               >
+                   <CalendarDays size={20} />
                    <input 
                         ref={dateInputRef} 
                         type="date" 
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
+                        className="absolute inset-0 w-full h-full opacity-0 pointer-events-none" 
                         value={format(currentDate, 'yyyy-MM-dd')} 
                         onChange={handleDateSelect} 
                    />
-               </div>
+               </button>
            </div>
            
            <div className="flex-1 flex items-center justify-center gap-3 sm:gap-6">
@@ -308,12 +253,13 @@ export default function App() {
            </div>
            
            <div className="w-12 sm:w-24 flex justify-end">
-             {activeTab === 'rating' && (
+             {activeTab === 'tracker' && installPrompt && (
                 <button 
-                 onClick={() => setIsRatingStatsOpen(true)}
-                 className="w-10 h-10 flex items-center justify-center rounded-full bg-stone-50 text-stone-600 hover:bg-stone-100 transition-all active:scale-95 border border-stone-200"
+                 onClick={handleInstallApp}
+                 className="w-10 h-10 flex items-center justify-center rounded-full bg-primary text-white hover:bg-primary/90 transition-all active:scale-95 shadow-md shadow-primary/20"
+                 title="安装离线应用"
                 >
-                  <BarChart2 size={20} />
+                  <Download size={18} />
                 </button>
               )}
            </div>
@@ -351,9 +297,9 @@ export default function App() {
                 onUpdateCategoryOrder={handleUpdateCategoryOrder}
                 showInstallButton={!!installPrompt} 
                 onInstall={handleInstallApp} 
-                onExportData={handleExportData} 
-                onImportData={handleImportData} 
-                onClearData={handleClearData} 
+                onExportData={() => {}} 
+                onImportData={() => {}} 
+                onClearData={() => {}} 
                 allSchedules={state.schedule} 
                 allRecords={state.records} 
                 currentDate={currentDate} 
@@ -370,29 +316,28 @@ export default function App() {
             </nav>
         </div>
 
-        {/* PWA 更新通知弹窗 */}
+        {/* PWA 更新通知提示 */}
         {showUpdateToast && (
-          <div className="absolute bottom-28 left-4 right-4 z-[100] animate-in slide-in-from-bottom-4 duration-300">
+          <div className="absolute bottom-28 left-4 right-4 z-[100] animate-in slide-in-from-bottom-4 duration-500">
             <div className="bg-stone-900 text-white p-4 rounded-2xl shadow-2xl border border-white/10 flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <RefreshCw size={20} className="text-primary animate-spin-slow" />
-                <div className="flex flex-col">
-                  <span className="text-xs font-bold">新版本已就绪</span>
-                  <span className="text-[10px] text-white/60">刷新以应用最新的功能优化</span>
+                <div className="p-2 bg-primary/20 rounded-xl">
+                  <RefreshCw size={20} className="text-primary animate-spin" style={{ animationDuration: '3s' }} />
+                </div>
+                <div>
+                  <div className="text-xs font-bold">新版本准备就绪</div>
+                  <div className="text-[10px] text-stone-400">点击刷新即可应用更新</div>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <button 
-                  onClick={() => setShowUpdateToast(false)}
-                  className="p-2 hover:bg-white/10 rounded-xl transition-colors"
-                >
-                  <X size={16} />
+              <div className="flex gap-2">
+                <button onClick={() => setShowUpdateToast(false)} className="p-2 text-stone-500 hover:text-white transition-colors">
+                  <X size={18} />
                 </button>
                 <button 
                   onClick={handleUpdateApp}
-                  className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 shadow-lg shadow-primary/20"
+                  className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-xl text-xs font-black transition-all active:scale-95"
                 >
-                  立即刷新
+                  刷新
                 </button>
               </div>
             </div>
