@@ -86,33 +86,39 @@
     <script type="module" src="./index.tsx"></script>
     <script>
       // 注册 Service Worker
-      if ('serviceWorker' in navigator) {
+      // 增加对环境协议的判断，避免在 about:srcdoc 等特殊环境中抛出异常
+      if ('serviceWorker' in navigator && (window.location.protocol === 'http:' || window.location.protocol === 'https:')) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('./sw.js', { scope: './' })
-            .then((registration) => {
-              console.log('SW Registered:', registration.scope);
-              
-              // 检查更新
-              registration.onupdatefound = () => {
-                const installingWorker = registration.installing;
-                if (installingWorker == null) return;
-                installingWorker.onstatechange = () => {
-                  if (installingWorker.state === 'installed') {
-                    if (navigator.serviceWorker.controller) {
-                      console.log('New content is available; please refresh.');
-                    } else {
-                      console.log('Content is cached for offline use.');
+          try {
+            // 使用相对于当前文档的路径，浏览器会自动处理 Origin
+            navigator.serviceWorker.register('./sw.js')
+              .then((registration) => {
+                console.log('SW Registered:', registration.scope);
+                
+                // 检查更新
+                registration.onupdatefound = () => {
+                  const installingWorker = registration.installing;
+                  if (installingWorker == null) return;
+                  installingWorker.onstatechange = () => {
+                    if (installingWorker.state === 'installed') {
+                      if (navigator.serviceWorker.controller) {
+                        console.log('New content is available; please refresh.');
+                      } else {
+                        console.log('Content is cached for offline use.');
+                      }
                     }
-                  }
+                  };
                 };
-              };
-            })
-            .catch((error) => {
-              console.error('SW Registration failed:', error);
-            });
+              })
+              .catch((error) => {
+                // 静默处理预览环境中的 Origin 限制
+                console.warn('SW Registration deferred:', error.message);
+              });
+          } catch (e) {
+            console.warn('Service worker initialization skipped:', e.message);
+          }
         });
       }
     </script>
-    <script type="module" src="/index.tsx"></script>
   </body>
 </html>

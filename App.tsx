@@ -43,21 +43,29 @@ export default function App() {
     };
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
-    // 2. 监测 Service Worker 更新 (PWA 核心逻辑)
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistration().then(reg => {
-        if (reg) {
-          swRegistration.current = reg;
-          reg.addEventListener('updatefound', () => {
-            const newWorker = reg.installing;
-            newWorker?.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                setShowUpdateToast(true);
-              }
+    // 2. 监测 Service Worker 更新 (PWA 核心逻辑) - 增加防御性代码
+    const isSecureContext = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
+    if ('serviceWorker' in navigator && isSecureContext) {
+      try {
+        navigator.serviceWorker.getRegistration().then(reg => {
+          if (reg) {
+            swRegistration.current = reg;
+            reg.addEventListener('updatefound', () => {
+              const newWorker = reg.installing;
+              newWorker?.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  setShowUpdateToast(true);
+                }
+              });
             });
-          });
-        }
-      });
+          }
+        }).catch(err => {
+          // 捕获预览环境可能抛出的 SecurityError 或 Origin 错误
+          console.debug('SW Registration inquiry ignored (likely cross-origin sandbox)');
+        });
+      } catch (e) {
+        // 防止不支持构造 URL 或其他异常环境
+      }
     }
 
     // 3. 处理从快捷方式启动的情况
