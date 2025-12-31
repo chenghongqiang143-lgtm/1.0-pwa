@@ -40,6 +40,7 @@ export default function App() {
     const handleBeforeInstallPrompt = (e: any) => { 
       e.preventDefault(); 
       setInstallPrompt(e); 
+      console.log('App is installable');
     };
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
@@ -52,12 +53,10 @@ export default function App() {
             const newWorker = reg.installing;
             newWorker?.addEventListener('statechange', () => {
               if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                // 新版本已下载并安装，处于等待状态
                 setShowUpdateToast(true);
               }
             });
           });
-          // 初始检查
           if (reg.waiting) setShowUpdateToast(true);
         }
       }).catch(() => {});
@@ -253,13 +252,16 @@ export default function App() {
            </div>
            
            <div className="w-12 sm:w-24 flex justify-end">
-             {activeTab === 'tracker' && installPrompt && (
+             {activeTab === 'tracker' && (
                 <button 
-                 onClick={handleInstallApp}
-                 className="w-10 h-10 flex items-center justify-center rounded-full bg-primary text-white hover:bg-primary/90 transition-all active:scale-95 shadow-md shadow-primary/20"
-                 title="安装离线应用"
+                 onClick={() => setIsRatingStatsOpen(true)}
+                 className={cn(
+                    "w-10 h-10 flex items-center justify-center rounded-full transition-all active:scale-95 border",
+                    installPrompt ? "bg-indigo-50 text-indigo-600 border-indigo-200 animate-pulse" : "bg-stone-50 text-stone-600 border-stone-200"
+                 )}
+                 title={installPrompt ? "应用可安装" : "今日状态"}
                 >
-                  <Download size={18} />
+                  {installPrompt ? <Download size={18} /> : <Activity size={18} />}
                 </button>
               )}
            </div>

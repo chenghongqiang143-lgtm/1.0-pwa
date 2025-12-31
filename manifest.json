@@ -1,14 +1,16 @@
 
 {
-  "id": "com.chronosflow.app",
+  "id": "com.chronosflow.app.v1",
   "name": "ChronosFlow 时间记录",
   "short_name": "ChronosFlow",
   "description": "专业的个人时间跟踪与复盘助手，支持离线使用。",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#ffffff",
+  "background_color": "#fafaf9",
   "theme_color": "#6366f1",
   "orientation": "portrait",
+  "categories": ["productivity", "utilities"],
   "icons": [
     {
       "src": "https://cdn-icons-png.flaticon.com/512/3239/3239945.png",
@@ -25,13 +27,13 @@
   ],
   "shortcuts": [
     {
-      "name": "今日跟踪",
+      "name": "今日记录",
       "url": "./index.html?tab=tracker",
       "icons": [{ "src": "https://cdn-icons-png.flaticon.com/512/3239/3239945.png", "sizes": "192x192" }]
     },
     {
-      "name": "复盘打分",
-      "url": "./index.html?tab=rating",
+      "name": "数据统计",
+      "url": "./index.html?tab=stats",
       "icons": [{ "src": "https://cdn-icons-png.flaticon.com/512/3239/3239945.png", "sizes": "192x192" }]
     }
   ]

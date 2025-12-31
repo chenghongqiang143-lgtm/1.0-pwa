@@ -2,7 +2,7 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { Task, DayData, HOURS } from '../types';
 import { TaskEditorModal } from '../components/TaskEditorModal';
-import { Plus, Download, Upload, Smartphone, ChevronRight, Trash2, AlertTriangle, ArrowUp, ArrowDown, ListOrdered } from 'lucide-react';
+import { Plus, Download, Upload, Smartphone, ChevronRight, Trash2, AlertTriangle, ArrowUp, ArrowDown, ListOrdered, Share, Sparkles } from 'lucide-react';
 import { subDays, eachDayOfInterval } from 'date-fns';
 import { formatDate, cn } from '../utils';
 
@@ -45,35 +45,16 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // 检测是否是 iOS
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
+
   const sortedCategories = useMemo(() => {
     const existingCats = Array.from(new Set(tasks.map(t => t.category || '未分类')));
     const ordered = categoryOrder.filter(c => existingCats.includes(c));
     const others = existingCats.filter(c => !categoryOrder.includes(c));
     return [...ordered, ...others];
   }, [tasks, categoryOrder]);
-
-  const getTaskProgress = (task: Task) => {
-      if (!task.targets || !task.targets.frequency) return 0;
-      const freq = task.targets.frequency;
-      const mode = task.targets.mode || 'duration';
-      const start = subDays(currentDate, freq - 1);
-      if (isNaN(start.getTime())) return 0;
-      const days = eachDayOfInterval({ start, end: currentDate });
-      let total = 0;
-      days.forEach(day => {
-          const dKey = formatDate(day);
-          const dayData = allRecords[dKey];
-          if (dayData && dayData.hours) {
-              HOURS.forEach(h => {
-                  const tIds = dayData.hours[h] || [];
-                  if (tIds.includes(task.id)) {
-                      total += (mode === 'count' ? 1 : (1 / tIds.length));
-                  }
-              });
-          }
-      });
-      return total;
-  };
 
   const handleEdit = (task: Task) => {
     setEditingTask(task);
@@ -97,22 +78,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
     if (e.target) e.target.value = '';
   };
 
-  const handleClearClick = () => {
-      if (showClearConfirm) {
-          onClearData();
-          setShowClearConfirm(false);
-      } else {
-          setShowClearConfirm(true);
-      }
-  };
-
-  const getFrequencyLabel = (days: number) => {
-      if (days === 1) return '今日';
-      if (days === 7) return '本周';
-      if (days === 30) return '本月';
-      return `${days}天`;
-  };
-
   const moveCategory = (index: number, direction: 'up' | 'down') => {
     const newOrder = [...sortedCategories];
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
@@ -122,176 +87,162 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   };
 
   return (
-    <div className="h-full bg-white overflow-y-auto custom-scrollbar relative">
+    <div className="h-full bg-stone-50 overflow-y-auto custom-scrollbar relative">
       <div className="relative z-10 px-5 pt-6 pb-2 flex justify-between items-center">
-        <div>
-          <h2 className="text-xl font-bold text-stone-800 tracking-tight">任务与目标</h2>
-        </div>
+        <h2 className="text-xl font-black text-stone-800 tracking-tight">配置与应用</h2>
         <div className="flex gap-2">
-            <button 
-                onClick={() => setShowCategoryManager(!showCategoryManager)}
-                className={cn(
-                    "w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-95 border",
-                    showCategoryManager ? "bg-primary text-white border-primary" : "bg-white text-stone-400 border-stone-200"
-                )}
-                title="调整分类排序"
-            >
-                <ListOrdered size={16} />
-            </button>
-            <button 
-                onClick={handleNew}
-                className="bg-stone-900 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-stone-800 transition-all active:scale-95 shadow-sm"
-            >
+            <button onClick={handleNew} className="bg-stone-900 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-stone-800 transition-all active:scale-95 shadow-sm">
                 <Plus size={16} />
             </button>
         </div>
       </div>
 
-      <div className="relative z-10 px-5 pb-24 space-y-6">
+      <div className="relative z-10 px-5 pb-24 space-y-6 pt-2">
         
-        {showCategoryManager && (
-            <div className="bg-stone-50 rounded-2xl p-4 border border-stone-100 animate-in fade-in slide-in-from-top-2 duration-300">
-                <h3 className="text-[10px] font-black text-stone-400 uppercase tracking-widest mb-3 px-1">调整分类排序</h3>
-                <div className="space-y-2">
-                    {sortedCategories.map((cat, idx) => (
-                        <div key={cat} className="flex items-center justify-between bg-white p-2.5 rounded-xl border border-stone-200 shadow-sm">
-                            <span className="text-xs font-bold text-stone-700">{cat}</span>
-                            <div className="flex gap-1">
-                                <button 
-                                    onClick={() => moveCategory(idx, 'up')}
-                                    disabled={idx === 0}
-                                    className="p-1.5 text-stone-400 hover:text-primary disabled:opacity-20"
-                                >
-                                    <ArrowUp size={14} />
-                                </button>
-                                <button 
-                                    onClick={() => moveCategory(idx, 'down')}
-                                    disabled={idx === sortedCategories.length - 1}
-                                    className="p-1.5 text-stone-400 hover:text-primary disabled:opacity-20"
-                                >
-                                    <ArrowDown size={14} />
-                                </button>
-                            </div>
+        {/* PWA 显著安装区域 */}
+        {!isStandalone && (
+            <div className="bg-indigo-600 rounded-[2rem] p-5 text-white shadow-xl shadow-indigo-200 relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl" />
+                <div className="relative z-10">
+                    <div className="flex items-center gap-3 mb-3">
+                        <div className="p-2 bg-white/20 rounded-xl">
+                            <Smartphone size={24} className="text-white" />
                         </div>
-                    ))}
+                        <div>
+                            <h3 className="font-bold text-sm">安装到桌面</h3>
+                            <p className="text-[10px] text-indigo-100 font-medium opacity-80">享受全屏沉浸体验与离线访问</p>
+                        </div>
+                    </div>
+                    
+                    {showInstallButton ? (
+                        <button 
+                            onClick={onInstall}
+                            className="w-full py-3 bg-white text-indigo-600 rounded-xl font-black text-xs flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg"
+                        >
+                            <Download size={16} /> 立即安装应用
+                        </button>
+                    ) : isIOS ? (
+                        <div className="bg-white/10 p-3 rounded-xl border border-white/20 flex flex-col gap-2">
+                            <p className="text-[10px] font-bold leading-tight flex items-center gap-2">
+                                <Share size={12} className="shrink-0" />
+                                1. 点击浏览器下方的“分享”按钮
+                            </p>
+                            <p className="text-[10px] font-bold leading-tight flex items-center gap-2">
+                                <Plus size={12} className="shrink-0 border rounded-[2px]" />
+                                2. 选择“添加到主屏幕”
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="text-[10px] font-bold bg-white/10 p-3 rounded-xl border border-white/10 italic opacity-70">
+                            通过浏览器菜单手动选择“安装应用”
+                        </div>
+                    )}
                 </div>
             </div>
         )}
 
-        <div className="space-y-4">
-           {sortedCategories.map(cat => (
-              <div key={cat}>
-                  <div className="flex items-center gap-2 mb-2 px-1">
-                      <span className="text-[9px] font-bold text-stone-400 uppercase tracking-widest">{cat}</span>
-                      <div className="h-px bg-stone-100 flex-1"></div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2.5">
-                      {tasks.filter(t => (t.category || '未分类') === cat).map(task => {
-                          const targetVal = task.targets ? (task.targets.value || (task.targets as any).duration || 0) : 0;
-                          const hasTarget = targetVal > 0;
-                          const currentProgress = hasTarget ? getTaskProgress(task) : 0;
-                          const freqLabel = hasTarget && task.targets ? getFrequencyLabel(task.targets.frequency) : '';
-                          const mode = task.targets?.mode || 'duration';
-                          const unit = mode === 'count' ? '' : 'h';
-                          const progressPercent = hasTarget ? Math.min((currentProgress / targetVal) * 100, 100) : 0;
+        {isStandalone && (
+            <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 flex items-center gap-3">
+                <div className="p-2 bg-emerald-500 text-white rounded-full">
+                    <Sparkles size={16} />
+                </div>
+                <div>
+                    <span className="text-xs font-black text-emerald-800">已作为独立应用运行</span>
+                    <p className="text-[10px] text-emerald-600 font-medium">您正在体验 ChronosFlow 的最佳模式</p>
+                </div>
+            </div>
+        )}
 
-                          return (
+        {/* 任务分类管理 */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between px-1">
+             <h3 className="text-[9px] font-black text-stone-400 uppercase tracking-widest">任务池管理</h3>
+             <button 
+                onClick={() => setShowCategoryManager(!showCategoryManager)}
+                className={cn("text-[9px] font-black px-2 py-1 rounded-lg border transition-all", showCategoryManager ? "bg-stone-900 text-white border-stone-900" : "bg-white text-stone-400 border-stone-200")}
+             >
+                排序模式
+             </button>
+          </div>
+
+          <div className="space-y-5">
+             {sortedCategories.map(cat => (
+                <div key={cat} className="space-y-2">
+                    <div className="flex items-center gap-2 px-1">
+                        <span className="text-[9px] font-bold text-stone-400 uppercase tracking-widest">{cat}</span>
+                        {showCategoryManager && (
+                            <div className="flex gap-1 ml-auto">
+                                <button onClick={() => moveCategory(sortedCategories.indexOf(cat), 'up')} className="p-1 text-stone-300 hover:text-stone-800"><ArrowUp size={12}/></button>
+                                <button onClick={() => moveCategory(sortedCategories.indexOf(cat), 'down')} className="p-1 text-stone-300 hover:text-stone-800"><ArrowDown size={12}/></button>
+                            </div>
+                        )}
+                        <div className="h-px bg-stone-100 flex-1"></div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                        {tasks.filter(t => (t.category || '未分类') === cat).map(task => (
                             <div 
                                 key={task.id} 
                                 onClick={() => handleEdit(task)}
-                                className="group bg-white rounded-xl border border-stone-200 hover:border-stone-400 transition-all cursor-pointer relative overflow-hidden flex flex-col justify-center px-3 min-h-[52px] select-none"
-                            >   
-                                {hasTarget && (
-                                    <div 
-                                        className="absolute left-0 top-0 bottom-0 transition-all duration-700 ease-out"
-                                        style={{ 
-                                            width: `${progressPercent}%`, 
-                                            backgroundColor: task.color,
-                                            opacity: 0.1
-                                        }} 
-                                    />
-                                )}
-                                <div className="absolute left-0 top-0 bottom-0 w-[3px]" style={{ backgroundColor: task.color }} />
-                                <div className="relative z-10 flex justify-between items-center w-full">
-                                    <span className="font-bold text-xs text-stone-700 truncate mr-2">{task.name}</span>
-                                    {hasTarget ? (
-                                       <div className="flex items-center gap-1.5 bg-stone-50 px-1.5 py-0.5 rounded-md border border-stone-100">
-                                           <span className="text-[9px] font-bold text-stone-400">{freqLabel}</span>
-                                           <span className="text-[10px] font-mono font-bold text-stone-600 leading-none">
-                                                {mode === 'count' ? currentProgress : currentProgress.toFixed(1)}
-                                                <span className="text-stone-300 mx-[1px]">/</span>
-                                                {targetVal}{unit}
-                                            </span>
-                                       </div>
-                                    ) : (
-                                       <div className="flex items-center gap-1 opacity-40">
-                                            <div className="w-1 h-1 rounded-full bg-stone-400"></div>
-                                            <span className="text-[9px] font-medium text-stone-400">无目标</span>
-                                       </div>
-                                    )}
-                                </div>
+                                className="bg-white rounded-xl p-2.5 border border-stone-200 flex items-center gap-2 group cursor-pointer hover:border-stone-400 transition-all"
+                            >
+                                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: task.color }} />
+                                <span className="text-[11px] font-bold text-stone-700 truncate">{task.name}</span>
                             </div>
-                          );
-                      })}
-                  </div>
-              </div>
-          ))}
-        </div>
+                        ))}
+                    </div>
+                </div>
+             ))}
+          </div>
+        </section>
 
-        <div>
-            <h3 className="text-[9px] font-bold text-stone-400 uppercase tracking-widest mb-2 px-1">数据与应用</h3>
-            <div className="bg-white rounded-xl border border-stone-200 divide-y divide-stone-100 overflow-hidden">
-                {showInstallButton && (
-                  <button onClick={onInstall} className="w-full flex items-center justify-between p-3 hover:bg-stone-50 transition-colors text-left group">
-                      <div className="flex items-center gap-3">
-                          <div className="p-1.5 bg-stone-100 rounded-md text-stone-600 border border-stone-200"><Smartphone size={14} /></div>
-                          <div>
-                              <div className="text-xs font-bold text-stone-700">安装应用</div>
-                              <div className="text-[9px] font-medium text-stone-400">添加到主屏幕</div>
-                          </div>
-                      </div>
-                      <ChevronRight size={14} className="text-stone-300 group-hover:text-stone-500 transition-colors" />
-                  </button>
-                )}
-                
-                <button onClick={onExportData} className="w-full flex items-center justify-between p-3 hover:bg-stone-50 transition-colors text-left group">
-                     <div className="flex items-center gap-3">
-                          <div className="p-1.5 bg-stone-100 rounded-md text-stone-600 border border-stone-200"><Download size={14} /></div>
-                          <div>
-                              <div className="text-xs font-bold text-stone-700">备份数据</div>
-                              <div className="text-[9px] font-medium text-stone-400">导出 JSON 文件</div>
-                          </div>
-                      </div>
-                      <ChevronRight size={14} className="text-stone-300 group-hover:text-stone-500 transition-colors" />
+        {/* 备份与恢复 */}
+        <section className="space-y-3">
+            <h3 className="text-[9px] font-black text-stone-400 uppercase tracking-widest px-1">数据维护</h3>
+            <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden divide-y divide-stone-100">
+                <button onClick={onExportData} className="w-full p-4 flex items-center justify-between hover:bg-stone-50 transition-colors">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-stone-100 rounded-lg text-stone-600"><Download size={16} /></div>
+                        <div className="text-left">
+                            <p className="text-xs font-bold text-stone-800">导出备份</p>
+                            <p className="text-[9px] text-stone-400">将数据保存为本地 JSON 文件</p>
+                        </div>
+                    </div>
+                    <ChevronRight size={16} className="text-stone-300" />
                 </button>
-
-                <button onClick={() => fileInputRef.current?.click()} className="w-full flex items-center justify-between p-3 hover:bg-stone-50 transition-colors text-left group">
-                     <div className="flex items-center gap-3">
-                          <div className="p-1.5 bg-stone-100 rounded-md text-stone-600 border border-stone-200"><Upload size={14} /></div>
-                          <div>
-                              <div className="text-xs font-bold text-stone-700">恢复数据</div>
-                              <div className="text-[9px] font-medium text-stone-400">从 JSON 恢复</div>
-                          </div>
-                      </div>
-                      <ChevronRight size={14} className="text-stone-300 group-hover:text-stone-500 transition-colors" />
+                <button onClick={() => fileInputRef.current?.click()} className="w-full p-4 flex items-center justify-between hover:bg-stone-50 transition-colors">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-stone-100 rounded-lg text-stone-600"><Upload size={16} /></div>
+                        <div className="text-left">
+                            <p className="text-xs font-bold text-stone-800">恢复备份</p>
+                            <p className="text-[9px] text-stone-400">从本地备份文件恢复所有数据</p>
+                        </div>
+                    </div>
+                    <ChevronRight size={16} className="text-stone-300" />
                 </button>
-                
                 <input type="file" ref={fileInputRef} hidden accept=".json" onChange={handleFileChange} />
-
-                <button onClick={handleClearClick} className={cn("w-full flex items-center justify-between p-3 transition-colors text-left group", showClearConfirm ? "bg-red-50 hover:bg-red-100" : "hover:bg-stone-50")}>
-                     <div className="flex items-center gap-3">
-                          <div className={cn("p-1.5 rounded-md transition-colors border", showClearConfirm ? "bg-red-500 text-white border-red-600" : "bg-stone-100 text-stone-600 border-stone-200")}>
-                              {showClearConfirm ? <AlertTriangle size={14} strokeWidth={2.5} /> : <Trash2 size={14} />}
-                          </div>
-                          <div>
-                              <div className={cn("text-xs font-bold transition-colors", showClearConfirm ? "text-red-600" : "text-stone-700")}>{showClearConfirm ? "确认清空所有数据？" : "清空数据"}</div>
-                              <div className={cn("text-[9px] font-medium transition-colors", showClearConfirm ? "text-red-400" : "text-stone-400")}>{showClearConfirm ? "再次点击执行，数据将无法恢复" : "慎用：清除日程、记录与统计"}</div>
-                          </div>
-                      </div>
-                      <ChevronRight size={14} className="text-stone-300 group-hover:text-stone-500 transition-colors" />
+                
+                <button 
+                    onClick={() => {
+                        if (showClearConfirm) { onClearData(); setShowClearConfirm(false); }
+                        else setShowClearConfirm(true);
+                    }} 
+                    className={cn("w-full p-4 flex items-center justify-between transition-colors", showClearConfirm ? "bg-rose-50" : "hover:bg-stone-50")}
+                >
+                    <div className="flex items-center gap-3">
+                        <div className={cn("p-2 rounded-lg", showClearConfirm ? "bg-rose-500 text-white" : "bg-stone-100 text-stone-600")}>
+                            {showClearConfirm ? <AlertTriangle size={16} /> : <Trash2 size={16} />}
+                        </div>
+                        <div className="text-left">
+                            <p className={cn("text-xs font-bold", showClearConfirm ? "text-rose-600" : "text-stone-800")}>
+                                {showClearConfirm ? "再次点击确认清空" : "清空所有数据"}
+                            </p>
+                            <p className="text-[9px] text-stone-400">重置所有任务、日程和记录</p>
+                        </div>
+                    </div>
+                    <ChevronRight size={16} className="text-stone-300" />
                 </button>
             </div>
-        </div>
+        </section>
       </div>
 
       <TaskEditorModal
